@@ -78,7 +78,7 @@ class SudokuSolver(object):
                     for k in range (3):
                         for l in range (3):
                             #stlpec/riadok sa da vypocitat ako podstvorec*3+pozicia v podstvorci+1
-                            w.writeLiteral(self.q(n,r,c))
+                            w.writeLiteral(self.q(n,i*3+k,j*3+l))
                     w.finishClause()
 
 
