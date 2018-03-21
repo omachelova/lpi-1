@@ -3,6 +3,14 @@ import cnf
 from typing import List, Mapping
 Valuation = Mapping[str, bool]
 
+#Literal
+# Clause
+#  Cnf
+#   Formula
+#    BinaryFormula
+#     Implication
+#     Equivalence
+
 class Formula(object):
     def __init__(self, subs : List['Formula']= []) -> None:
         self.m_subf = subs # type: List[Formula]
@@ -17,10 +25,10 @@ class Formula(object):
     def __repr__(self) -> str:
         return self.__class__.__name__ + '(' + ','.join([ repr(f) for f in self.subf()]) + ')'
 
-    def toCnf(self) -> cnf.Cnf:
-        """ Vrati reprezentaciu formuly v CNF tvare. """
-        # TODO
-        return cnf.Cnf()
+#    def toCnf(self) -> cnf.Cnf:
+#        """ Vrati reprezentaciu formuly v CNF tvare. """
+#        # TODO
+#        return cnf.Cnf()
 
 class Variable(Formula):
     def __init__(self, name : str) -> None:
@@ -34,6 +42,8 @@ class Variable(Formula):
         return self.name()
     def __repr__(self) -> str:
         return "Variable(%r)" % (self.name(),)
+    def toCnf(self) -> cnf.Cnf:
+        return [[Literal(self.name())]]
 
 class Negation(Formula):
     def __init__(self, orig : Formula) -> None:
@@ -44,6 +54,25 @@ class Negation(Formula):
         return not self.originalFormula().isSatisfied(v)
     def toString(self) -> str:
         return "-%s" % (self.originalFormula().toString())
+    def toCnf(self) -> cnf.Cnf:
+        forcnf = originalFormula(self).toCnf()
+        if (forcnf.length() < 1):
+            ret = forcnf;
+        if (forcnf.length() == 1):
+            retf = [];
+            cla = forcnf[0];
+            for lit in cla:
+                retf.append(-lit)              
+            ret = [retf]
+        else: 
+            retf = [];
+            for lit1 in forcnf[0]:
+                for lit2 in forcnf[1]:
+                    retf.append( [(-lit1), (-lit2)])              
+            ret = (Disjunction([retf]) + [forcnf[2:]]).toCnf()
+
+        return ret;
+
 
 class Disjunction(Formula):
     def __init__(self, subs : List[Formula]) -> None:
@@ -52,6 +81,16 @@ class Disjunction(Formula):
         return any(f.isSatisfied(v) for f in self.subf())
     def toString(self) -> str:
         return '(' + '|'.join(f.toString() for f in self.subf()) + ')'
+    def toCnf(self) -> cnf.Cnf:
+        if (self.subf().length() < 2):
+          ret = self.subf()
+        else: 
+          retf = []
+          for f1 in self.items()[0]:
+              for f2 in self.items()[1]:  
+                  retf.append(toCnf([f1,f2]))              
+          ret = retf+self.subf()[2:]
+        return ret;
 
 class Conjunction(Formula):
     def __init__(self, subs : List[Formula]) -> None:
@@ -60,6 +99,11 @@ class Conjunction(Formula):
         return all(f.isSatisfied(v) for f in self.subf())
     def toString(self) -> str:
         return '(' + '&'.join(f.toString() for f in self.subf()) + ')'
+    def toCnf(self) -> cnf.Cnf:
+        v=[]
+        for cla in self.subf():
+            v.append(toCnf(cla))
+        return v
 
 class BinaryFormula(Formula):
     connective = ''
@@ -76,10 +120,15 @@ class Implication(BinaryFormula):
     connective = '->'
     def isSatisfied(self, v : Valuation) -> bool:
         return (not self.leftSide().isSatisfied(v)) or self.rightSide().isSatisfied(v)
+    def toCnf(self) -> cnf.Cnf:
+        return Disjunction([Negation((self.leftSide()).toCnf()), (self.rightSide()).toCnf())).toCnf()
 
 class Equivalence(BinaryFormula):
     connective = '<->'
     def isSatisfied(self, v : Valuation) -> bool:
         return self.leftSide().isSatisfied(v) == self.rightSide().isSatisfied(v)
+    def toCnf(self) -> cnf.Cnf:
+        return Conjunction(Disjunction([Negation((self.leftSide()).toCnf()),(self.rightSide()).toCnf())),
+                           Disjunction([Negation((self.rightSide()).toCnf()), (self.leftSide()).toCnf()))).toCnf()
 
 # vim: set sw=4 ts=4 sts=4 et :
